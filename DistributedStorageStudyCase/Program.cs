@@ -14,16 +14,29 @@ using Microsoft.Extensions.Configuration;
 var services = new ServiceCollection();
 
 var configuration = new ConfigurationBuilder()
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false)
     .Build();
+
+var logPath = Path.Combine(
+    AppContext.BaseDirectory,
+    "logs",
+    "log-.txt"
+);
+
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(configuration)
+    .WriteTo.File(
+        path: logPath,
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 7
+    )
+    .CreateLogger();
 services.AddLogging(loggingBuilder =>
 {
     loggingBuilder.ClearProviders();
-    loggingBuilder.AddSerilog(dispose: true);
+    loggingBuilder.AddSerilog(Log.Logger, dispose: false);
 });
-
-
-
 
 services.AddDbContext<MetadataDbContext>(options =>
 {
@@ -48,33 +61,43 @@ var uploadService = provider.GetRequiredService<IFileUploadService>();
 var downloadService = provider.GetRequiredService<IFileDownloadService>();
 var metadataRepo = provider.GetRequiredService<IMetadataRepository>();
 
-while (true)
+try
 {
-    Console.WriteLine();
-    Console.WriteLine("==== Lütfen yapmak istediğiniz işlemi seçiniz ====");
-    Console.WriteLine("1) Dosya Yükle");
-    Console.WriteLine("2) Dosya İndir");
-    Console.WriteLine("0) Çıkış");
-    Console.Write("Seçiminiz: ");
 
-    var input = Console.ReadLine();
+   
 
-    switch (input)
+    while (true)
     {
-        case "1":
-            await UploadMenu.Draw(uploadService);
-            break;
+        Console.WriteLine();
+        Console.WriteLine("==== Lütfen yapmak istediğiniz işlemi seçiniz ====");
+        Console.WriteLine("1) Dosya Yükle");
+        Console.WriteLine("2) Dosya İndir");
+        Console.WriteLine("0) Çıkış");
+        Console.Write("Seçiminiz: ");
 
-        case "2":
-            await DownloadMenu.Draw(downloadService, metadataRepo);
-            break;
+        var input = Console.ReadLine();
 
-        case "0":
-            return;
+        switch (input)
+        {
+            case "1":
+                await UploadMenu.Draw(uploadService);
+                break;
 
-        default:
-            Console.WriteLine("Geçersiz seçim.");
-            break;
+            case "2":
+                await DownloadMenu.Draw(downloadService, metadataRepo);
+                break;
+
+            case "0":
+                return;
+
+            default:
+                Console.WriteLine("Geçersiz seçim.");
+                break;
+        }
     }
-}
 
+}
+finally
+{
+    Log.CloseAndFlush();
+}
